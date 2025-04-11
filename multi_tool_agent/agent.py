@@ -1,68 +1,58 @@
-import datetime
-from zoneinfo import ZoneInfo
+import asyncio
 from google.adk.agents import Agent
 
-
-def get_weather(city: str) -> dict:
-    """Retrieves the current weather report for a specified city.
-
-    Args:
-        city (str): The name of the city for which to retrieve the weather report.
-
-    Returns:
-        dict: status and result or error msg.
-    """
-    if city.lower() == "new york":
-        return {
-            "status": "success",
-            "report": (
-                "The weather in New York is sunny with a temperature of 25 degrees"
-                " Celsius (41 degrees Fahrenheit)."
-            ),
-        }
-    else:
-        return {
-            "status": "error",
-            "error_message": f"Weather information for '{city}' is not available.",
-        }
-
-
-def get_current_time(city: str) -> dict:
-    """Returns the current time in a specified city.
-
-    Args:
-        city (str): The name of the city for which to retrieve the current time.
-
-    Returns:
-        dict: status and result or error msg.
-    """
-
-    if city.lower() == "new york":
-        tz_identifier = "America/New_York"
-    else:
-        return {
-            "status": "error",
-            "error_message": (
-                f"Sorry, I don't have timezone information for {city}."
-            ),
-        }
-
-    tz = ZoneInfo(tz_identifier)
-    now = datetime.datetime.now(tz)
-    report = (
-        f'The current time in {city} is {now.strftime("%Y-%m-%d %H:%M:%S %Z%z")}'
-    )
-    return {"status": "success", "report": report}
-
-
-root_agent = Agent(
-    name="weather_time_agent",
-    model="gemini-2.0-flash-exp",
-    description=(
-        "Agent to answer questions about the time and weather in a city."
-    ),
-    instruction=(
-        "I can answer your questions about the time and weather in a city."
-    ),
-    tools=[get_weather, get_current_time],
+# 共通モジュールからインポート
+from .common import (
+    get_weather,
+    get_current_time,
+    setup_session,
+    call_agent_async,
+    run_conversation,
+    load_environment_variables
 )
+
+# 環境変数の読み込み
+load_environment_variables()
+
+
+def create_weather_agent():
+    """天気エージェントを作成し、ツールで構成します。"""
+    return Agent(
+        name="weather_agent_v1",
+        model="gemini-2.0-flash-exp",
+        description=(
+            "Agent to answer questions about the time and weather in a city."
+        ),
+        instruction=(
+            "I can answer your questions about the time and weather in a city."
+        ),
+        tools=[get_weather, get_current_time],
+    )
+
+
+def main():
+    """天気エージェントを実行するメイン関数。"""
+    # インタラクションコンテキストを識別するための定数を定義
+    app_name = "weather_tutorial_app"
+    user_id = "user_1"
+    session_id = "session_001"  # シンプルさのために固定IDを使用
+
+    # エージェントを作成
+    weather_agent = create_weather_agent()
+
+    # セッションとランナーを設定
+    _, runner, _ = setup_session(weather_agent, app_name, user_id, session_id)
+
+    # サンプルクエリのリスト
+    sample_queries = [
+        "What is the weather like in London?",
+        "How about Paris?",  # ツールのエラーメッセージを期待
+        "Tell me the weather in New York"
+    ]
+
+    # 会話を実行（トップレベルコードのasyncio.run）
+    asyncio.run(run_conversation(runner, user_id, session_id, sample_queries))
+
+
+if __name__ == "__main__":
+    main()
