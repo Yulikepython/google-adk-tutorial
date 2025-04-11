@@ -11,7 +11,8 @@ from ..common import (
     get_weather,
     call_agent_async,
     load_environment_variables,
-    get_weather_stateful
+    get_weather_stateful,
+    block_keyword_guardrail
 )
 
 # サブエージェントをインポート
@@ -57,7 +58,8 @@ try:
             weather_agent_claude,
             farewell_agent
         ],
-        output_key="last_weather_report"
+        output_key="last_weather_report",
+        before_model_callback=block_keyword_guardrail
     )
     print(f"✅ Root agent '{root_agent.name}' created successfully.")
 except Exception as e:
@@ -156,6 +158,12 @@ async def run_team_conversation():
     # This will also update 'last_weather_report' via output_key
     print("\n--- Turn 2: Requesting weather in New York (expect Fahrenheit) ---")
     await call_agent_async(query="What is the weather in New York?",
+                           runner=runner_agent_team,
+                           user_id=USER_ID,
+                           session_id=SESSION_ID)
+
+    # Block keyword guardrail
+    await call_agent_async(query="BLOCK the request for weather in Tokyo",
                            runner=runner_agent_team,
                            user_id=USER_ID,
                            session_id=SESSION_ID)
