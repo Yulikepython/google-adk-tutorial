@@ -10,7 +10,8 @@ from google.adk.sessions import InMemorySessionService
 from ..common import (
     get_weather,
     call_agent_async,
-    load_environment_variables
+    load_environment_variables,
+    get_weather_stateful
 )
 
 # サブエージェントをインポート
@@ -48,14 +49,13 @@ try:
         
         Always delegate to the most appropriate sub-agent rather than trying to handle queries yourself.
         """,
+        tools=[get_weather_stateful],
         # ルートエージェントの下に全てのサブエージェントを設定
         sub_agents=[
             greeting_agent,
-            weather_agent_gpt,
-            weather_agent_claude,
             farewell_agent
         ],
-        tools=[get_weather],  # 冗長ですが、安全のために
+        output_key="last_weather_report"
     )
     print(f"✅ Root agent '{root_agent.name}' created successfully.")
 except Exception as e:
@@ -71,55 +71,70 @@ elif 'root_agent' not in globals():
     # Assign a dummy value to prevent NameError later if the code block runs anyway
     root_agent = None
 
-if root_agent_var_name in globals() and globals()[root_agent_var_name]:
-    async def run_team_conversation():
-        print("\n--- Testing Agent Team Delegation ---")
-        # InMemorySessionService is simple, non-persistent storage for this tutorial.
-        session_service = InMemorySessionService()
 
-        # Define constants for identifying the interaction context
-        APP_NAME = "weather_tutorial_agent_team"
-        USER_ID = "user_1_agent_team"
-        SESSION_ID = "session_001_agent_team"  # Using a fixed ID for simplicity
+async def run_team_conversation():
+    print("\n--- Testing Agent Team Delegation ---")
+    # InMemorySessionService is simple, non-persistent storage for this tutorial.
+    session_service: InMemorySessionService = InMemorySessionService()
 
-        # Create the specific session where the conversation will happen
-        session = session_service.create_session(
-            app_name=APP_NAME,
-            user_id=USER_ID,
-            session_id=SESSION_ID
-        )
-        print(
-            f"Session created: App='{APP_NAME}', User='{USER_ID}', Session='{SESSION_ID}'")
+    # Define constants for identifying the interaction context
+    APP_NAME = "weather_tutorial_agent_team"
+    USER_ID = "user_1_agent_team"
+    SESSION_ID = "session_001_agent_team"  # Using a fixed ID for simplicity
 
-        # --- Get the actual root agent object ---
-        # Use the determined variable name
-        actual_root_agent = globals()[root_agent_var_name]
+    initial_state = {
+        "user_preference_temperature_unit": "Celsius"
+    }
+    # Create the specific session where the conversation will happen
+    session = session_service.create_session(
+        app_name=APP_NAME,
+        user_id=USER_ID,
+        session_id=SESSION_ID,
+        state=initial_state
+    )
+    print(
+        f"Session created: App='{APP_NAME}', User='{USER_ID}', Session='{SESSION_ID}'")
 
-        # Create a runner specific to this agent team test
-        runner_agent_team = Runner(
-            agent=actual_root_agent,  # Use the root agent object
-            app_name=APP_NAME,       # Use the specific app name
-            session_service=session_service  # Use the specific session service
-        )
-        # Corrected print statement to show the actual root agent's name
-        print(f"Runner created for agent '{actual_root_agent.name}'.")
+    # Verify the initial state was set correctly
+    retrieved_session = session_service.get_session(app_name=APP_NAME,
+                                                    user_id=USER_ID,
+                                                    session_id=SESSION_ID)
+    print("\n--- session ---")
+    print(session)
+    print("\n--- session until here ---")
+    print("\n--- Initial Session State ---")
+    if retrieved_session:
+        print(retrieved_session.state)
+    else:
+        print("Error: Could not retrieve session.")
 
-        # Always interact via the root agent's runner, passing the correct IDs
-        await call_agent_async(query="Hello there!",
-                               runner=runner_agent_team,
-                               user_id=USER_ID,
-                               session_id=SESSION_ID)
-        await call_agent_async(query="What is the weather in New York?",
-                               runner=runner_agent_team,
-                               user_id=USER_ID,
-                               session_id=SESSION_ID)
-        await call_agent_async(query="Thanks, bye!",
-                               runner=runner_agent_team,
-                               user_id=USER_ID,
-                               session_id=SESSION_ID)
+    # --- Get the actual root agent object ---
+    # Use the determined variable name
+    actual_root_agent = globals()[root_agent_var_name]
 
-    # 非同期関数を実行するための正しい方法
-    if __name__ == "__main__":
-        asyncio.run(run_team_conversation())
-else:
-    print("\n⚠️ Skipping agent team conversation as the root agent was not successfully defined in the previous step.")
+    # Create a runner specific to this agent team test
+    runner_agent_team = Runner(
+        agent=actual_root_agent,  # Use the root agent object
+        app_name=APP_NAME,       # Use the specific app name
+        session_service=session_service  # Use the specific session service
+    )
+    # Corrected print statement to show the actual root agent's name
+    print(f"Runner created for agent '{actual_root_agent.name}'.")
+
+    # Always interact via the root agent's runner, passing the correct IDs
+    await call_agent_async(query="Hello there!",
+                           runner=runner_agent_team,
+                           user_id=USER_ID,
+                           session_id=SESSION_ID)
+    await call_agent_async(query="What is the weather in New York?",
+                           runner=runner_agent_team,
+                           user_id=USER_ID,
+                           session_id=SESSION_ID)
+    await call_agent_async(query="Thanks, bye!",
+                           runner=runner_agent_team,
+                           user_id=USER_ID,
+                           session_id=SESSION_ID)
+
+# 非同期関数を実行するための正しい方法
+if __name__ == "__main__":
+    asyncio.run(run_team_conversation())
