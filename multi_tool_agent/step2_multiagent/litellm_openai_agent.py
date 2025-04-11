@@ -8,7 +8,8 @@ from ..common import (
     get_weather,
     setup_session,
     call_agent_async,
-    load_environment_variables
+    load_environment_variables,
+    simple_print_before_agent_call
 )
 
 # 親ディレクトリの.envファイルを読み込む
@@ -33,6 +34,7 @@ def create_gpt_weather_agent():
         "Use the 'get_weather' tool for city weather requests. "
         "Clearly present successful reports or polite error messages based on the tool's output status.",
         tools=[get_weather],  # 同じツールを再利用
+        before_agent_callback=simple_print_before_agent_call
     )
 
 

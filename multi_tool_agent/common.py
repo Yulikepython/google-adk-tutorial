@@ -4,10 +4,13 @@
 """
 import datetime
 from zoneinfo import ZoneInfo
+from typing import Optional
 import asyncio
 from google.adk.agents import Agent
 from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
+from google.adk.agents.callback_context import CallbackContext
+
 from google.genai import types  # For creating message Content/Parts
 
 from dotenv import load_dotenv
@@ -173,3 +176,14 @@ async def run_conversation(runner, user_id, session_id, queries):
     """
     for query in queries:
         await call_agent_async(runner, user_id, session_id, query)
+
+
+def simple_print_before_agent_call(callback_context: CallbackContext) -> Optional[types.Content]:
+    """print outs the agent name and the query before calling the agent."""
+    agent_name = callback_context.agent_name
+    invocation_id = callback_context.invocation_id
+    print(
+        f"[Callback] Entering agent: {agent_name} (Invocation: {invocation_id})")
+    print(f"[Callback] user_content: {callback_context.user_content}")
+    print(f"[Callback] state: {callback_context.state}")
+    print(f"[Callback]: {dir(callback_context)}")

@@ -8,7 +8,8 @@ from ..common import (
     get_weather,
     setup_session,
     call_agent_async,
-    load_environment_variables
+    load_environment_variables,
+    simple_print_before_agent_call
 )
 
 # 親ディレクトリの.envファイルを読み込む
@@ -34,6 +35,7 @@ def create_claude_weather_agent():
         "Analyze the tool's dictionary output ('status', 'report'/'error_message'). "
         "Clearly present successful reports or polite error messages.",
         tools=[get_weather],  # 同じツールを再利用
+        before_agent_callback=simple_print_before_agent_call
     )
 
 

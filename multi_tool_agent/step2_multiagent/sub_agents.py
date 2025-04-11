@@ -4,7 +4,8 @@ from google.adk.agents import Agent
 
 # 共通モジュールからインポート
 from ..common import (
-    load_environment_variables
+    load_environment_variables,
+    simple_print_before_agent_call
 )
 
 # 親ディレクトリの.envファイルを読み込む
@@ -62,6 +63,7 @@ try:
         # Crucial for delegation
         description="Handles simple greetings and hellos using the 'say_hello' tool.",
         tools=[say_hello],
+        before_agent_callback=simple_print_before_agent_call
     )
     print(
         f"✅ Agent '{greeting_agent.name}' created using model '{MODEL_GPT_4O}'.")
@@ -77,14 +79,11 @@ try:
         # Sticking with GPT for this example
         model=LiteLlm(model=MODEL_GPT_4O),
         name="farewell_agent",
-        instruction="You are the Farewell Agent. Your ONLY task is to provide a polite goodbye message. "
-                    "Use the 'say_goodbye' tool when the user indicates they are leaving or ending the conversation "
-                    "(e.g., using words like 'bye', 'goodbye', 'thanks bye', 'see you'). "
-                    "Do not perform any other actions.",
+        instruction="You are the Farewell Agent. Your ONLY task is to provide a polite goodbye message. Use the 'say_goodbye' tool when the user indicates they are leaving or ending the conversation (e.g., using words like 'bye', 'goodbye', 'thanks bye', 'see you'). Do not perform any other actions.",
         # Crucial for delegation
         description="Handles simple farewells and goodbyes using the 'say_goodbye' tool.",
         tools=[say_goodbye],
-
+        before_agent_callback=simple_print_before_agent_call
     )
     print(
         f"✅ Agent '{farewell_agent.name}' created using model '{MODEL_GPT_4O}'.")
