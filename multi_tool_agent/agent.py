@@ -1,79 +1,22 @@
-import datetime
-from zoneinfo import ZoneInfo
 import asyncio
 from google.adk.agents import Agent
-from google.adk.runners import Runner
-from google.adk.sessions import InMemorySessionService
-from google.genai import types  # For creating message Content/Parts
 
-from dotenv import load_dotenv
-load_dotenv()
+# 共通モジュールからインポート
+from .common import (
+    get_weather,
+    get_current_time,
+    setup_session,
+    call_agent_async,
+    run_conversation,
+    load_environment_variables
+)
 
-
-def get_weather(city: str) -> dict:
-    """Retrieves the current weather report for a specified city.
-
-    Args:
-        city (str): The name of the city (e.g., "New York", "London", "Tokyo").
-
-    Returns:
-        dict: A dictionary containing the weather information.
-              Includes a 'status' key ('success' or 'error').
-              If 'success', includes a 'report' key with weather details.
-              If 'error', includes an 'error_message' key.
-    """
-    # Best Practice: Log tool execution for easier debugging
-    print(f"--- Tool: get_weather called for city: {city} ---")
-    city_normalized = city.lower().replace(" ", "")  # Basic input normalization
-
-    # Mock weather data for simplicity
-    mock_weather_db = {
-        "newyork": {"status": "success", "report": "The weather in New York is sunny with a temperature of 25°C."},
-        "london": {"status": "success", "report": "It's cloudy in London with a temperature of 15°C."},
-        "tokyo": {"status": "success", "report": "Tokyo is experiencing light rain and a temperature of 18°C."},
-    }
-
-    # Best Practice: Handle potential errors gracefully within the tool
-    if city_normalized in mock_weather_db:
-        return mock_weather_db[city_normalized]
-    else:
-        return {"status": "error", "error_message": f"Sorry, I don't have weather information for '{city}'."}
-
-
-def get_current_time(city: str) -> dict:
-    """Returns the current time in a specified city.
-
-    Args:
-        city (str): The name of the city for which to retrieve the current time.
-
-    Returns:
-        dict: status and result or error msg.
-    """
-
-    if city.lower() == "new york":
-        tz_identifier = "America/New_York"
-    elif city.lower() == "tokyo":
-        tz_identifier = "Asia/Tokyo"
-    elif city.lower() == "london":
-        tz_identifier = "Europe/London"
-    else:
-        return {
-            "status": "error",
-            "error_message": (
-                f"Sorry, I don't have timezone information for {city}."
-            ),
-        }
-
-    tz = ZoneInfo(tz_identifier)
-    now = datetime.datetime.now(tz)
-    report = (
-        f'The current time in {city} is {now.strftime("%Y-%m-%d %H:%M:%S %Z%z")}'
-    )
-    return {"status": "success", "report": report}
+# 環境変数の読み込み
+load_environment_variables()
 
 
 def create_weather_agent():
-    """Creates and configures the weather agent with tools."""
+    """天気エージェントを作成し、ツールで構成します。"""
     return Agent(
         name="weather_agent_v1",
         model="gemini-2.0-flash-exp",
@@ -87,91 +30,28 @@ def create_weather_agent():
     )
 
 
-def setup_session(app_name, user_id, session_id):
-    """Sets up and returns the session service and runner.
+def main():
+    """天気エージェントを実行するメイン関数。"""
+    # インタラクションコンテキストを識別するための定数を定義
+    app_name = "weather_tutorial_app"
+    user_id = "user_1"
+    session_id = "session_001"  # シンプルさのために固定IDを使用
 
-    Args:
-        app_name (str): Application identifier
-        user_id (str): User identifier
-        session_id (str): Session identifier
-
-    Returns:
-        tuple: (session_service, runner, session)
-    """
-    # Session management
-    session_service = InMemorySessionService()
-
-    # Create the specific session where the conversation will happen
-    session = session_service.create_session(
-        app_name=app_name,
-        user_id=user_id,
-        session_id=session_id
-    )
-    print(
-        f"Session created: App='{app_name}', User='{user_id}', Session='{session_id}'")
-
-    # Create agent
+    # エージェントを作成
     weather_agent = create_weather_agent()
 
-    # Runner setup
-    runner = Runner(
-        agent=weather_agent,
-        app_name=app_name,
-        session_service=session_service
-    )
-    print(f"Runner created for agent '{runner.agent.name}'.")
+    # セッションとランナーを設定
+    _, runner, _ = setup_session(weather_agent, app_name, user_id, session_id)
 
-    return session_service, runner, session
+    # サンプルクエリのリスト
+    sample_queries = [
+        "What is the weather like in London?",
+        "How about Paris?",  # ツールのエラーメッセージを期待
+        "Tell me the weather in New York"
+    ]
 
-
-async def call_agent_async(runner, user_id, session_id, query: str):
-    """Sends a query to the agent and prints the final response."""
-    print(f"\n>>> User Query: {query}")
-
-    # Prepare the user's message in ADK format
-    content = types.Content(role='user', parts=[types.Part(text=query)])
-
-    final_response_text = "Agent did not produce a final response."  # Default
-
-    # Key Concept: run_async executes the agent logic and yields Events.
-    # We iterate through events to find the final answer.
-    async for event in runner.run_async(user_id=user_id, session_id=session_id, new_message=content):
-        # You can uncomment the line below to see *all* events during execution
-        # print(f"  [Event] Author: {event.author}, Type: {type(event).__name__}, Final: {event.is_final_response()}, Content: {event.content}")
-
-        # Key Concept: is_final_response() marks the concluding message for the turn.
-        if event.is_final_response():
-            if event.content and event.content.parts:
-                # Assuming text response in the first part
-                final_response_text = event.content.parts[0].text
-            elif event.actions and event.actions.escalate:  # Handle potential errors/escalations
-                final_response_text = f"Agent escalated: {event.error_message or 'No specific message.'}"
-            # Add more checks here if needed (e.g., specific error codes)
-            break  # Stop processing events once the final response is found
-
-    print(f"<<< Agent Response: {final_response_text}")
-
-
-async def run_conversation(runner, user_id, session_id):
-    """Runs a sample conversation with the agent."""
-    await call_agent_async(runner, user_id, session_id, "What is the weather like in London?")
-    # Expecting the tool's error message
-    await call_agent_async(runner, user_id, session_id, "How about Paris?")
-    await call_agent_async(runner, user_id, session_id, "Tell me the weather in New York")
-
-
-def main():
-    """Main function to run the weather agent."""
-    # Define constants for identifying the interaction context
-    app_name = "weather_tutorial_app"
-    user_id = "user_1"  # Changed USER_ID to user_id for consistency
-    session_id = "session_001"  # Using a fixed ID for simplicity
-
-    # Setup session and runner
-    _, runner, _ = setup_session(app_name, user_id, session_id)
-
-    # Run the conversation (asyncio.run for top-level code)
-    asyncio.run(run_conversation(runner, user_id, session_id))
+    # 会話を実行（トップレベルコードのasyncio.run）
+    asyncio.run(run_conversation(runner, user_id, session_id, sample_queries))
 
 
 if __name__ == "__main__":
