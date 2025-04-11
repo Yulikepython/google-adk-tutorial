@@ -17,9 +17,8 @@ parent_dir = os.path.abspath(os.path.join(
 dotenv_path = os.path.join(parent_dir, ".env")
 load_environment_variables(dotenv_path=dotenv_path)
 
-MODEL_GPT_4O = "gpt-4o"
-
 # LiteLLM: https://docs.litellm.ai/docs/
+MODEL_GPT_4O = "gpt-4o"
 
 
 def create_gpt_weather_agent():
