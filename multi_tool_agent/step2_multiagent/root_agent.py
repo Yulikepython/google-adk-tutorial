@@ -8,12 +8,12 @@ from google.adk.sessions import InMemorySessionService
 
 # 共通モジュールからインポート
 from ..common import (
-    get_weather,
     call_agent_async,
     load_environment_variables,
-    get_weather_stateful,
-    block_keyword_guardrail
+    get_weather_stateful
 )
+
+from ..guardrails import block_keyword_guardrail, block_paris_tool_guardrail
 
 # サブエージェントをインポート
 from .sub_agents import get_greeting_agent, get_farewell_agent
@@ -59,7 +59,8 @@ try:
             farewell_agent
         ],
         output_key="last_weather_report",
-        before_model_callback=block_keyword_guardrail
+        before_model_callback=block_keyword_guardrail,
+        before_tool_callback=block_paris_tool_guardrail,
     )
     print(f"✅ Root agent '{root_agent.name}' created successfully.")
 except Exception as e:
@@ -167,6 +168,14 @@ async def run_team_conversation():
                            runner=runner_agent_team,
                            user_id=USER_ID,
                            session_id=SESSION_ID)
+
+    # Block city
+    # 2. Blocked city (Should pass model callback, but be blocked by tool callback)
+    await call_agent_async(query="How about Paris?",
+                           runner=runner_agent_team,
+                           user_id=USER_ID,
+                           session_id=SESSION_ID)
+
     await call_agent_async(query="Thanks, bye!",
                            runner=runner_agent_team,
                            user_id=USER_ID,

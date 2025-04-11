@@ -5,20 +5,14 @@
 import datetime
 from zoneinfo import ZoneInfo
 from typing import Optional
-import asyncio
-from google.adk.agents import Agent
 from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
 from google.adk.agents.callback_context import CallbackContext
 from google.adk.tools.tool_context import ToolContext
-from google.adk.models.llm_request import LlmRequest
-from google.adk.models.llm_response import LlmResponse
-
 
 from google.genai import types  # For creating message Content/Parts
 
 from dotenv import load_dotenv
-import os
 
 # 環境変数の読み込み
 
@@ -241,54 +235,3 @@ def simple_print_before_agent_call(callback_context: CallbackContext) -> Optiona
     print(f"[Callback] user_content: {callback_context.user_content}")
     print(f"[Callback] state: {callback_context.state}")
     print(f"[Callback]: {dir(callback_context)}")
-
-
-def block_keyword_guardrail(
-    callback_context: CallbackContext, llm_request: LlmRequest
-) -> Optional[LlmResponse]:
-    """
-    Inspects the latest user message for 'BLOCK'. If found, blocks the LLM call
-    and returns a predefined LlmResponse. Otherwise, returns None to proceed.
-    """
-    agent_name = callback_context.agent_name  # Get the name of the agent whose model call is being intercepted
-    print(
-        f"--- Callback: block_keyword_guardrail running for agent: {agent_name} ---")
-
-    # Extract the text from the latest user message in the request history
-    last_user_message_text = ""
-    if llm_request.contents:
-        # Find the most recent message with role 'user'
-        for content in reversed(llm_request.contents):
-            if content.role == 'user' and content.parts:
-                # Assuming text is in the first part for simplicity
-                if content.parts[0].text:
-                    last_user_message_text = content.parts[0].text
-                    break  # Found the last user message text
-
-    # Log first 100 chars
-    print(
-        f"--- Callback: Inspecting last user message: '{last_user_message_text[:100]}...' ---")
-
-    # --- Guardrail Logic ---
-    keyword_to_block = "BLOCK"
-    if keyword_to_block in last_user_message_text.upper():  # Case-insensitive check
-        print(
-            f"--- Callback: Found '{keyword_to_block}'. Blocking LLM call! ---")
-        # Optionally, set a flag in state to record the block event
-        callback_context.state["guardrail_block_keyword_triggered"] = True
-        print("--- Callback: Set state 'guardrail_block_keyword_triggered': True ---")
-
-        # Construct and return an LlmResponse to stop the flow and send this back instead
-        return LlmResponse(
-            content=types.Content(
-                role="model",  # Mimic a response from the agent's perspective
-                parts=[types.Part(
-                    text=f"I cannot process this request because it contains the blocked keyword '{keyword_to_block}'.")],
-            )
-            # Note: You could also set an error_message field here if needed
-        )
-    else:
-        # Keyword not found, allow the request to proceed to the LLM
-        print(
-            f"--- Callback: Keyword not found. Allowing LLM call for {agent_name}. ---")
-        return None  # Returning None signals ADK to continue normally
